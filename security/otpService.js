@@ -139,7 +139,7 @@ function initOtpService({ DATA_FOLDER, safeRead, safeWrite } = {}) {
             const otp = "123456";
             const requestId = crypto.randomBytes(12).toString("hex");
             const now = Date.now();
-            const existing = otpStore.get(mobile);
+            const existing = store[mobile];
             if (existing && existing.expiresAt > now) {
                 return { error: { code: "resend-cooldown", retryAfterSec: Math.max(1, Math.ceil((existing.expiresAt - now) / 1000)) } };
             }
