@@ -103,7 +103,7 @@ async function run({ databaseUrl } = {}) {
         for (const item of bootstrap) {
             const sql = fs.readFileSync(item.fullPath, "utf8");
             console.log(`[database] applying ${item.name} ...`);
-            await pool.query(sql);
+            try { await pool.query(sql); } catch (err) { if (!/already exists|duplicate object/i.test(err.message)) throw err; console.warn(`[database] existing object skipped: ${err.message}`); }
             ran.push(item.name);
         }
         const migrations = listMigrations();
