@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Withdraw</title>
+<style>
+  :root { --bg:#F2F2F3; --card:#fff; --text:#1A1A1A; --dim:#8A8A8E; --accent:#FF7A45; --green:#2E9E4F; --red:#D64545; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:14px; }
+  .card { background:var(--card); border-radius:14px; padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .card h2 { margin:0 0 10px; font-size:16px; }
+  .row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:14px; }
+  .row b { font-size:15px; }
+  .hint { color:var(--dim); font-size:12px; margin-top:4px; }
+  .field { width:100%; padding:10px; border:1px solid #E2E2E4; border-radius:8px; margin-bottom:8px; font-size:14px; }
+  .btn { width:100%; padding:12px; border:none; border-radius:10px; background:var(--accent); color:#fff; font-size:15px; font-weight:600; }
+  .btn:disabled { background:#D9D9DC; color:#8A8A8E; }
+  .btn-ghost { background:#F0F0F1; color:var(--text); }
+  .badge { padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+  .badge-pending { background:#FFF3D6; color:#A97600; }
+  .badge-verified { background:#DFF5E3; color:var(--green); }
+  .badge-rejected { background:#FCE1E1; color:var(--red); }
+  .badge-notsubmitted { background:#EDEDEE; color:var(--dim); }
+  .history-row { display:flex; justify-content:space-between; font-size:13px; padding:8px 0; border-bottom:1px solid #F0F0F1; }
+  .err { color:var(--red); font-size:13px; margin:6px 0; }
+  .ok { color:var(--green); font-size:13px; margin:6px 0; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h2>Withdraw Balance</h2>
+    <div class="row"><span>Beans</span><b id="wd-beans">0</b></div>
+    <div class="row"><span>Available</span><b id="wd-available">$0.00</b></div>
+    <div class="row"><span>Reserved (pending)</span><b id="wd-reserved">$0.00</b></div>
+    <div class="hint" id="wd-rate-hint"></div>
+  </div>
+
+  <div class="card">
+    <h2>Convert Beans</h2>
+    <input type="number" min="1" class="field" id="conv-beans" placeholder="Beans to convert">
+    <button class="btn btn-ghost" id="conv-btn">Convert to USD</button>
+    <div id="conv-msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Withdrawal KYC</h2>
+    <div class="row"><span>Country</span><select class="field" id="kyc-country"></select></div>
+    <div class="row"><span>Status</span><span class="badge" id="kyc-badge">—</span></div>
+    <div id="kyc-rejected-reason" class="err" style="display:none;"></div>
+    <div id="kyc-form-wrap">
+      <div class="hint" style="margin-bottom:8px;">Select your country. The required identity and bank fields change automatically for that country.</div>
+      <div id="kyc-document-fields"></div>
+      <div id="kyc-bank-fields"></div>
+      <button class="btn" id="kyc-submit-btn">Submit KYC</button>
+      <div id="kyc-msg"></div>
+    </div>
+    <div id="kyc-verified-wrap" style="display:none;">
+      <div class="row"><span>Bank A/C</span><b id="kyc-acc-masked">—</b></div>
+      <div id="kyc-verified-identifiers"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Withdraw</h2>
+    <div class="hint" id="wd-min-hint" style="margin-bottom:8px;"></div>
+    <input type="number" min="0" step="0.01" class="field" id="wd-amount" placeholder="Amount (USD)">
+    <button class="btn" id="wd-submit-btn" disabled>Withdraw</button>
+    <div id="wd-msg"></div>
+    <div class="hint" id="wd-disabled-hint"></div>
+  </div>
+
+  <div class="card">
+    <h2>Withdrawal History</h2>
+    <div id="wd-history"><div class="hint">Loading…</div></div>
+  </div>
+
+<script>
+(function(){
+  // Same auth-token bridge pattern as wallet-ui.html: this page can be
+  // loaded standalone or inside the main app's iframe, and either way the
+  // token lives in whichever window's localStorage actually has it.
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = function(input, init) {
+    init = init ? { ...init } : {};
+    const h = new Headers(init.headers || {});
+    const t = (window.parent && window.parent !== window ? window.parent.localStorage.getItem("pp_auth_token") : localStorage.getItem("pp_auth_token")) || "";
+    if (t && !h.has("Authorization")) h.set("Authorization", "Bearer " + t);
+    if (!init.credentials) init.credentials = "include";
+    init.headers = h;
+    return nativeFetch(input, init);
+  };
+})();
+
+function usd(cents) { return "$" + (Math.max(0, Math.floor(cents || 0)) / 100).toFixed(2); }
+function fmt(n) { return Number(n || 0).toLocaleString(); }
+
+function badgeClass(status) {
+  return status === "VERIFIED" ? "badge-verified" : status === "PENDING" ? "badge-pending" : status === "REJECTED" ? "badge-rejected" : "badge-notsubmitted";
+}
+let state = null, kycSchema = null;
+
+async function loadKycSchema(countryId) {
+  const res=await fetch("/api/withdrawal/kyc/schema/"+encodeURIComponent(countryId));
+  const data=await res.json(); if(!data.success)return;
+  kycSchema=data.schema;
+  const docs=document.getElementById("kyc-document-fields"), bank=document.getElementById("kyc-bank-fields");
+  docs.innerHTML=(kycSchema.documents||[]).map(d=>`<input class="field" data-kyc-key="${d.key}" placeholder="${d.label}${d.required?"":" (optional)"}">`).join("");
+  bank.innerHTML=`<input class="field" data-kyc-key="accountHolder" placeholder="Account Holder Name">
+    <input class="field" data-kyc-key="accountNumber" placeholder="Bank Account Number">
+    <input class="field" data-kyc-key="confirmAccountNumber" placeholder="Confirm Bank Account Number">`+
+    (kycSchema.bank?.identifiers||[]).map(d=>`<input class="field" data-kyc-key="${d.key}" placeholder="${d.label}${d.required?"":" (optional)"}">`).join("");
+}
+async function loadKycCountries(selected) {
+  const res=await fetch("/api/withdrawal/kyc/countries"), data=await res.json();
+  if(!data.success)return;
+  const sel=document.getElementById("kyc-country");
+  const list=data.countries||[];
+  sel.innerHTML=list.map(c=>`<option value="${c.countryId}">${c.countryName}</option>`).join("");
+  if(selected && list.some(c=>c.countryId===selected)) sel.value=selected;
+  await loadKycSchema(sel.value||"IN");
+}
+async function loadState() {
+  const res = await fetch("/api/withdrawal/state");
+  const data = await res.json(); if (!data.success) return;
+  state = data;
+  if (data.profileCountryId) {
+    const countrySelect = document.getElementById("kyc-country");
+    if (Array.from(countrySelect.options).some(o => o.value === data.profileCountryId)) {
+      countrySelect.value = data.profileCountryId;
+    }
+  }
+  document.getElementById("wd-beans").textContent = fmt(data.beans);
+  document.getElementById("wd-available").textContent = usd(data.availableCents);
+  document.getElementById("wd-reserved").textContent = usd(data.reservedCents);
+  document.getElementById("wd-rate-hint").textContent = fmt(data.beansPerUsd) + " Beans = $1";
+  document.getElementById("wd-min-hint").textContent = "Minimum Withdrawal: " + usd(data.minWithdrawalCents);
+  const kyc=data.kyc||{status:"NOT_SUBMITTED"}, badge=document.getElementById("kyc-badge");
+  badge.textContent=kyc.status.replace("_"," "); badge.className="badge "+badgeClass(kyc.status);
+  const rej=document.getElementById("kyc-rejected-reason");
+  if(kyc.status==="REJECTED"&&kyc.rejectionReason){rej.style.display="block";rej.textContent="Rejected: "+kyc.rejectionReason+" — please correct and resubmit."}else rej.style.display="none";
+  const form=document.getElementById("kyc-form-wrap"), verified=document.getElementById("kyc-verified-wrap");
+  const country=kyc.countryId || data.profileCountryId || document.getElementById("kyc-country").value || "IN";
+  await loadKycSchema(country);
+  document.getElementById("kyc-country").value=country;
+  form.style.display=kyc.status==="PENDING"||kyc.status==="VERIFIED"?"none":"block";
+  verified.style.display=kyc.status==="VERIFIED"?"block":"none";
+  if(kyc.status==="VERIFIED"){
+    document.getElementById("kyc-acc-masked").textContent=kyc.bankAccountMasked||"—";
+    document.getElementById("kyc-verified-identifiers").innerHTML=Object.entries(kyc.bankIdentifiers||{}).map(([k,v])=>`<div class="row"><span>${k}</span><b>${v}</b></div>`).join("");
+  }
+  const submit=document.getElementById("wd-submit-btn"), hint=document.getElementById("wd-disabled-hint");
+  if(kyc.status!=="VERIFIED"){submit.disabled=true;hint.textContent="Complete KYC to enable Withdrawal"}
+  else if(data.availableCents<data.minWithdrawalCents){submit.disabled=true;hint.textContent="Convert more Beans to reach the minimum withdrawal"}
+  else if(!data.withdrawalEnabled){submit.disabled=true;hint.textContent="Withdrawals are currently disabled"}
+  else{submit.disabled=false;hint.textContent=""}
+}
+
+async function loadHistory() {
+  const res = await fetch("/api/withdrawal/history");
+  const data = await res.json();
+  const el = document.getElementById("wd-history");
+  if (!data.success || !data.history.length) { el.innerHTML = '<div class="hint">No withdrawals yet.</div>'; return; }
+  el.innerHTML = data.history.map((h) => `
+    <div class="history-row"><span>${h.amountLabel}</span><span>${h.status}</span><span class="hint">${new Date(h.createdAt).toLocaleDateString()}</span></div>
+  `).join("");
+}
+
+document.getElementById("conv-btn").addEventListener("click", async () => {
+  const beans = Number(document.getElementById("conv-beans").value);
+  const msg = document.getElementById("conv-msg");
+  msg.className = ""; msg.textContent = "";
+  if (!beans || beans <= 0) { msg.className = "err"; msg.textContent = "Enter a valid Beans amount"; return; }
+  const res = await fetch("/api/withdrawal/convert", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ beans }) });
+  const data = await res.json();
+  if (data.success) {
+    msg.className = "ok"; msg.textContent = "Converted successfully.";
+    document.getElementById("conv-beans").value = "";
+    await loadState();
+  } else {
+    msg.className = "err"; msg.textContent = data.message || "Conversion failed";
+  }
+});
+
+document.getElementById("kyc-submit-btn").addEventListener("click", async () => {
+  const body={countryId:document.getElementById("kyc-country").value};
+  document.querySelectorAll("[data-kyc-key]").forEach(el=>body[el.dataset.kycKey]=el.value);
+  const msg=document.getElementById("kyc-msg");
+  const res=await fetch("/api/withdrawal/kyc/submit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const data=await res.json();
+  if(data.success){msg.className="ok";msg.textContent="KYC submitted, pending review.";await loadState()}
+  else{msg.className="err";msg.textContent=data.message||"Submission failed"}
+});
+document.getElementById("kyc-country").addEventListener("change",async(e)=>{await loadKycSchema(e.target.value)});
+
+document.getElementById("wd-submit-btn").addEventListener("click", async () => {
+  const amountUsd = Number(document.getElementById("wd-amount").value);
+  const msg = document.getElementById("wd-msg");
+  msg.className = ""; msg.textContent = "";
+  if (!amountUsd || amountUsd <= 0) { msg.className = "err"; msg.textContent = "Enter a valid amount"; return; }
+  const res = await fetch("/api/withdrawal/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amountUsd }) });
+  const data = await res.json();
+  if (data.success) {
+    msg.className = "ok"; msg.textContent = "Withdrawal request submitted.";
+    document.getElementById("wd-amount").value = "";
+    await loadState();
+    await loadHistory();
+  } else {
+    msg.className = "err"; msg.textContent = data.message || "Withdrawal failed";
+  }
+});
+
+(async()=>{await loadKycCountries(); await loadState(); await loadHistory();})();
+</script>
+</body>
+</html>

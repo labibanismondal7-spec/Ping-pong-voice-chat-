@@ -1,0 +1,8 @@
+PingPong Production Hardening Release
+Release date: 2026-08-24
+Server: production-hardened
+Voice: LiveKit SFU selectable; seat->publish race hardened; reconnect recovery retained
+SMS: Railway/cloud HTTP gateway adapter + local Termux fallback
+Safety: report/block/account self-delete APIs and user-facing controls
+Android: targetSdk/compileSdk 36; release version 1.3.0
+Build: Docker uses npm install for lockfile-free source distribution

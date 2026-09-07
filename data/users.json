@@ -1,0 +1,58 @@
+{
+  "+918101221193": {
+    "userId": "46854706",
+    "name": "Rohan",
+    "mobile": "+918101221193",
+    "photo": "",
+    "followers": 0,
+    "following": 0,
+    "followersList": [],
+    "followingList": [],
+    "visitors": 0,
+    "diamonds": 0,
+    "level": 1,
+    "idLevel": 0,
+    "lifetimeGiftSent": 0,
+    "vipLevel": 0,
+    "banned": false,
+    "verified": false,
+    "agencyId": null,
+    "isHost": true,
+    "activeFrame": null,
+    "customTag": null,
+    "nameEffect": null,
+    "lastDailyRewardAt": null,
+    "lastWeeklyRewardAt": null,
+    "recentRooms": [
+      {
+        "roomId": "8cc31f444e",
+        "roomNumber": "46854706",
+        "roomName": "OFFICIAL",
+        "hostId": "46854706",
+        "hostName": "Rohan",
+        "lastVisitAt": "2026-09-07T12:25:41.773Z"
+      },
+      {
+        "roomId": "101",
+        "roomNumber": "101",
+        "roomName": "AI Customer Service",
+        "hostId": "pingpong_ai_help",
+        "hostName": "Robin",
+        "lastVisitAt": "2026-09-07T12:23:15.834Z"
+      }
+    ],
+    "groups": [],
+    "countryId": "IN",
+    "profile_completed": true,
+    "gender": "Male",
+    "country": "IN",
+    "language": "bn",
+    "svipWealth": 0,
+    "svipLevel": 0,
+    "svipMembershipType": "permanent",
+    "svipExpireAt": null,
+    "svipExpiryWarned": false,
+    "assignedTagLevel": null,
+    "vehicleInventory": []
+  }
+}

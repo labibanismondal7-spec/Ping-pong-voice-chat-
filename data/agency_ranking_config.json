@@ -1,0 +1,18 @@
+{
+  "durationDays": 7,
+  "rewards": [
+    {
+      "rank": 1,
+      "diamonds": 100000
+    },
+    {
+      "rank": 2,
+      "diamonds": 75000
+    },
+    {
+      "rank": 3,
+      "diamonds": 50000
+    }
+  ],
+  "eventStartAt": "2026-09-07T12:21:27.166Z"
+}

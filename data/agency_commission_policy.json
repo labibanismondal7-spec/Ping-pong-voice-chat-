@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "tiers": [
+    {
+      "id": "tier-1",
+      "minTargetValue": 0,
+      "commissionPercent": 10,
+      "enabled": true
+    },
+    {
+      "id": "tier-2",
+      "minTargetValue": 5000000,
+      "commissionPercent": 30,
+      "enabled": true
+    },
+    {
+      "id": "tier-3",
+      "minTargetValue": 500000000,
+      "commissionPercent": 40,
+      "enabled": true
+    }
+  ]
+}
