@@ -12,7 +12,7 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ---------- Reference data ----------
-CREATE TABLE countries (
+CREATE TABLE IF NOT EXISTS countries (
     code            TEXT PRIMARY KEY,
     name            TEXT NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -25,7 +25,7 @@ CREATE TABLE countries (
 -- remain authoritative (see WALLET_CUTOVER_PLAN.md). Do not add wallet
 -- columns to this table — that would recreate the duplicate-authority
 -- problem this revision fixes.
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     user_id         TEXT PRIMARY KEY,
     mobile          TEXT UNIQUE,
     display_name    TEXT,
@@ -46,18 +46,18 @@ CREATE TABLE users (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_users_mobile ON users(mobile);
-CREATE INDEX idx_users_agency ON users(agency_id);
-CREATE INDEX idx_users_country ON users(country_code);
+CREATE INDEX IF NOT EXISTS idx_users_mobile ON users(mobile);
+CREATE INDEX IF NOT EXISTS idx_users_agency ON users(agency_id);
+CREATE INDEX IF NOT EXISTS idx_users_country ON users(country_code);
 
-CREATE TABLE follows (
+CREATE TABLE IF NOT EXISTS follows (
     follower_id     TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     followee_id     TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (follower_id, followee_id)
 );
 
-CREATE TABLE otp_codes (
+CREATE TABLE IF NOT EXISTS otp_codes (
     id              BIGSERIAL PRIMARY KEY,
     mobile          TEXT NOT NULL,
     code_hash       TEXT NOT NULL,
@@ -66,10 +66,10 @@ CREATE TABLE otp_codes (
     resend_cooldown_until TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_otp_mobile ON otp_codes(mobile);
+CREATE INDEX IF NOT EXISTS idx_otp_mobile ON otp_codes(mobile);
 
 -- ---------- Rooms ----------
-CREATE TABLE rooms (
+CREATE TABLE IF NOT EXISTS rooms (
     room_id         TEXT PRIMARY KEY,
     room_number     TEXT UNIQUE,
     name            TEXT NOT NULL,
@@ -81,9 +81,9 @@ CREATE TABLE rooms (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_rooms_owner ON rooms(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_rooms_owner ON rooms(owner_user_id);
 
-CREATE TABLE room_members (
+CREATE TABLE IF NOT EXISTS room_members (
     room_id         TEXT NOT NULL REFERENCES rooms(room_id) ON DELETE CASCADE,
     user_id         TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     role            TEXT NOT NULL DEFAULT 'member',
@@ -91,7 +91,7 @@ CREATE TABLE room_members (
     PRIMARY KEY (room_id, user_id)
 );
 
-CREATE TABLE room_seats (
+CREATE TABLE IF NOT EXISTS room_seats (
     room_id         TEXT NOT NULL REFERENCES rooms(room_id) ON DELETE CASCADE,
     seat_index      INTEGER NOT NULL,
     locked          BOOLEAN NOT NULL DEFAULT false,
@@ -103,7 +103,7 @@ CREATE TABLE room_seats (
 -- ---------- Gifts ----------
 -- gift_transactions references Module 4's txn_id (TEXT, its own PK type)
 -- rather than a local wallet_transactions table — Module 4 IS the ledger.
-CREATE TABLE gifts_catalog (
+CREATE TABLE IF NOT EXISTS gifts_catalog (
     gift_id         TEXT PRIMARY KEY,
     name            TEXT NOT NULL,
     diamond_cost    BIGINT NOT NULL,
@@ -111,7 +111,7 @@ CREATE TABLE gifts_catalog (
     active          BOOLEAN NOT NULL DEFAULT true
 );
 
-CREATE TABLE gift_transactions (
+CREATE TABLE IF NOT EXISTS gift_transactions (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     gift_id         TEXT NOT NULL REFERENCES gifts_catalog(gift_id),
     sender_user_id  TEXT NOT NULL REFERENCES users(user_id),
@@ -123,11 +123,11 @@ CREATE TABLE gift_transactions (
     receiver_txn_id TEXT,    -- FK (by convention, not FK constraint) into module4_wallet_ledger.txn_id
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_gift_txn_sender ON gift_transactions(sender_user_id, created_at DESC);
-CREATE INDEX idx_gift_txn_receiver ON gift_transactions(receiver_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_gift_txn_sender ON gift_transactions(sender_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_gift_txn_receiver ON gift_transactions(receiver_user_id, created_at DESC);
 
 -- ---------- Admin / RBAC ----------
-CREATE TABLE admin_accounts (
+CREATE TABLE IF NOT EXISTS admin_accounts (
     admin_id        TEXT PRIMARY KEY,
     user_id         TEXT REFERENCES users(user_id),
     role            TEXT NOT NULL,
@@ -135,7 +135,7 @@ CREATE TABLE admin_accounts (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE admin_logs (
+CREATE TABLE IF NOT EXISTS admin_logs (
     id              BIGSERIAL PRIMARY KEY,
     admin_id        TEXT REFERENCES admin_accounts(admin_id),
     action          TEXT NOT NULL,
@@ -144,7 +144,7 @@ CREATE TABLE admin_logs (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE bans (
+CREATE TABLE IF NOT EXISTS bans (
     id              BIGSERIAL PRIMARY KEY,
     user_id         TEXT NOT NULL REFERENCES users(user_id),
     reason          TEXT,
@@ -152,7 +152,7 @@ CREATE TABLE bans (
     expires_at      TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_bans_user ON bans(user_id);
+CREATE INDEX IF NOT EXISTS idx_bans_user ON bans(user_id);
 
 -- ---------- Legacy JSON-store backstop (perf/dbPersistence.js, pre-existing) ----------
 DO $$
