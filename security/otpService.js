@@ -134,6 +134,24 @@ function initOtpService({ DATA_FOLDER, safeRead, safeWrite } = {}) {
      *   { error: { code:"resend-cooldown", retryAfterSec } }  if still cooling down
      */
     function issueOtp(mobile) {
+        const demoMode = String(process.env.SMS_GATEWAY_MODE || "").trim().toLowerCase() === "demo";
+        if (demoMode) {
+            const otp = "123456";
+            const requestId = crypto.randomBytes(12).toString("hex");
+            const now = Date.now();
+            const existing = otpStore.get(mobile);
+            if (existing && existing.expiresAt > now) {
+                return { error: { code: "resend-cooldown", retryAfterSec: Math.max(1, Math.ceil((existing.expiresAt - now) / 1000)) } };
+            }
+            otpStore.set(mobile, {
+                hash: hashOtp(otp),
+                expiresAt: now + OTP_TTL_MS,
+                requestId,
+                attempts: 0
+            });
+            console.log(`[otp] DEMO OTP for ${maskMobile(mobile)} = ${otp} (requestId=${requestId}, ttl=${Math.round(OTP_TTL_MS / 1000)}s)`);
+            return { otp, requestId };
+        }
         const cooldown = checkResendCooldown(mobile);
         if (!cooldown.ok) return { error: cooldown };
 

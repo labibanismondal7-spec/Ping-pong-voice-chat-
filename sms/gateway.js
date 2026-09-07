@@ -4,6 +4,10 @@ const whatsappGateway = require("../whatsapp/cloudApi");
 const MODE = String(process.env.SMS_GATEWAY_MODE || "local").trim().toLowerCase();
 async function sendSms({to,message}) {
   if (!to || !message) return {success:false,error:"Missing destination number or message"};
+  if (MODE === "demo") {
+    console.log(`[SMS-DEMO] to=${String(to)} message=${JSON.stringify(String(message))}`);
+    return {success:true, providerMessageId:"demo-"+Date.now()};
+  }
   if (MODE === "local") return localGateway.sendSms({to,message});
   if (MODE === "whatsapp") {
     const otpMatch = String(message).match(/(?:code|OTP|verification code)\s*[:\-]?\s*(\d{4,8})/i);
