@@ -143,12 +143,16 @@ function initOtpService({ DATA_FOLDER, safeRead, safeWrite } = {}) {
             if (existing && existing.expiresAt > now) {
                 return { error: { code: "resend-cooldown", retryAfterSec: Math.max(1, Math.ceil((existing.expiresAt - now) / 1000)) } };
             }
-            otpStore.set(mobile, {
-                hash: hashOtp(otp),
+            const salt = crypto.randomBytes(16).toString("hex");
+        store[mobile] = {
+                hash: hashOtp(otp, salt),
+                salt,
                 expiresAt: now + OTP_TTL_MS,
                 requestId,
-                attempts: 0
-            });
+                attempts: 0,
+                createdAt: now
+            };
+        persist({ immediate: true });
             console.log(`[otp] DEMO OTP for ${maskMobile(mobile)} = ${otp} (requestId=${requestId}, ttl=${Math.round(OTP_TTL_MS / 1000)}s)`);
             return { otp, requestId };
         }
