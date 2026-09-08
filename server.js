@@ -3827,6 +3827,234 @@ app.post("/api/room/background/upload", userAuth.requireUserAuth, uploadBg.singl
     res.json({ success: true, url: "/backgrounds/" + req.file.filename });
 });
 
+
+// ---------- Admin Frame Upload ----------
+app.post(
+    "/api/admin/frames/upload",
+    requireAdmin,
+    requirePermission("frames:manage"),
+    uploadFrame.single("frame"),
+    (req, res) => {
+        try {
+            if (!req.file) {
+                return res.status(400).json({
+                    success: false,
+                    message: "PNG frame file not found"
+                });
+            }
+
+            const name = String(
+                req.body?.name || req.file.originalname || "Frame"
+            ).trim().slice(0, 80);
+
+            const vipOnly =
+                String(req.body?.vipOnly || "").toLowerCase() === "true";
+
+            const entry = {
+                id: "frame_" + crypto.randomBytes(6).toString("hex"),
+                name: name || "Frame",
+                vipOnly,
+                imageUrl: "/frames/" + req.file.filename,
+                enabled: true,
+                createdAt: new Date().toISOString()
+            };
+
+            frameCatalog.push(entry);
+            saveFrameCatalog();
+
+            io.emit("frame-catalog", frameCatalog);
+
+            rbac.logAction({
+                admin: req.adminAccount,
+                action: "frame-upload",
+                module: "frames",
+                targetType: "frame",
+                targetId: entry.id,
+                after: entry,
+                ip: req.ip,
+                userAgent: reqUserAgent(req)
+            });
+
+            return res.json({
+                success: true,
+                frame: entry,
+                frames: frameCatalog
+            });
+        } catch (err) {
+            console.error("frame upload error:", err);
+            return res.status(500).json({
+                success: false,
+                message: "Frame upload failed"
+            });
+        }
+    }
+);
+
+
+// ---------- Admin Gift Asset Upload ----------
+app.post(
+    "/api/admin/gifts/upload",
+    requireAdmin,
+    requirePermission("gifts:manage"),
+    uploadGiftAssets.fields([
+        { name: "image", maxCount: 1 },
+        { name: "sound", maxCount: 1 }
+    ]),
+    (req, res) => {
+        try {
+            const files = req.files || {};
+            const image = files.image?.[0] || null;
+            const sound = files.sound?.[0] || null;
+
+            if (!image) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Gift PNG image not found"
+                });
+            }
+
+            const name = String(
+                req.body?.name || image.originalname || "Gift"
+            ).trim().slice(0, 80);
+
+            const price = Math.max(
+                0,
+                Number(req.body?.price || 0)
+            );
+
+            const effectType =
+                req.body?.effectType === "full_screen"
+                    ? "full_screen"
+                    : "small";
+
+            const tier = ["normal", "vip", "legend"].includes(
+                String(req.body?.tier || "").toLowerCase()
+            )
+                ? String(req.body.tier).toLowerCase()
+                : "normal";
+
+            const entry = {
+                id: "gift_" + crypto.randomBytes(6).toString("hex"),
+                name: name || "Gift",
+                image: "/gift-images/" + image.filename,
+                sound: sound ? "/gift-sounds/" + sound.filename : null,
+                price,
+                effectType,
+                tier,
+                enabled: true,
+                createdAt: new Date().toISOString()
+            };
+
+            giftCatalog.push(entry);
+            saveGiftCatalog();
+            broadcastGiftCatalog();
+
+            rbac.logAction({
+                admin: req.adminAccount,
+                action: "gift-upload",
+                module: "gifts",
+                targetType: "gift",
+                targetId: entry.id,
+                after: entry,
+                ip: req.ip,
+                userAgent: reqUserAgent(req)
+            });
+
+            return res.json({
+                success: true,
+                gift: entry,
+                gifts: publicGiftCatalog()
+            });
+        } catch (err) {
+            console.error("gift upload error:", err);
+            return res.status(500).json({
+                success: false,
+                message: "Gift upload failed"
+            });
+        }
+    }
+);
+
+
+// ---------- Admin Video Gift Upload ----------
+app.post(
+    "/api/admin/video-gifts/upload",
+    requireAdmin,
+    requirePermission("video-gifts:manage"),
+    uploadVideoGift.fields([
+        { name: "video", maxCount: 1 },
+        { name: "thumbnail", maxCount: 1 }
+    ]),
+    (req, res) => {
+        try {
+            const files = req.files || {};
+            const video = files.video?.[0] || null;
+            const thumbnail = files.thumbnail?.[0] || null;
+
+            if (!video) {
+                return res.status(400).json({
+                    success: false,
+                    message: "MP4 video file not found"
+                });
+            }
+
+            const name = String(
+                req.body?.name || video.originalname || "Video Gift"
+            ).trim().slice(0, 80);
+
+            const price = Math.max(
+                MIN_VIDEO_GIFT_PRICE,
+                Number(req.body?.price || MIN_VIDEO_GIFT_PRICE)
+            );
+
+            const duration = Math.max(
+                1,
+                Math.min(30, Number(req.body?.duration || 6))
+            );
+
+            const entry = {
+                id: "vgift_" + crypto.randomBytes(6).toString("hex"),
+                name: name || "Video Gift",
+                videoUrl: "/video-gifts/" + video.filename,
+                thumbnailUrl: thumbnail
+                    ? "/video-gifts-thumbs/" + thumbnail.filename
+                    : null,
+                price,
+                duration,
+                enabled: true,
+                createdAt: new Date().toISOString()
+            };
+
+            videoGiftCatalog.push(entry);
+            saveVideoGiftCatalog();
+            broadcastVideoGiftCatalog();
+
+            rbac.logAction({
+                admin: req.adminAccount,
+                action: "video-gift-upload",
+                module: "video-gifts",
+                targetType: "videoGift",
+                targetId: entry.id,
+                after: entry,
+                ip: req.ip,
+                userAgent: reqUserAgent(req)
+            });
+
+            return res.json({
+                success: true,
+                videoGift: entry,
+                videoGifts: publicVideoGiftCatalog()
+            });
+        } catch (err) {
+            console.error("video gift upload error:", err);
+            return res.status(500).json({
+                success: false,
+                message: "Video Gift upload failed"
+            });
+        }
+    }
+);
+
 // ---------- Theme Library (admin-curated, room-selectable) ----------
 app.get("/api/theme-library/list", (req, res) => {
     res.json({ success: true, themes: themeLibrary });
