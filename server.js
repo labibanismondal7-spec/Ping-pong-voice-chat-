@@ -3828,6 +3828,30 @@ app.post("/api/room/background/upload", userAuth.requireUserAuth, uploadBg.singl
 });
 
 
+// ---------- Admin Frame Catalog ----------
+// Admin Control must use the admin session/token here.
+// /api/frames/catalog is the USER inventory endpoint and must not be
+// used by the Admin Panel.
+app.get(
+    "/api/admin/frames/catalog",
+    requireAdmin,
+    requirePermission("frames:manage"),
+    (req, res) => {
+        try {
+            return res.json({
+                success: true,
+                frames: Array.isArray(frameCatalog) ? frameCatalog : []
+            });
+        } catch (err) {
+            console.error("[admin-frame-catalog]", err);
+            return res.status(500).json({
+                success: false,
+                message: "Could not load frame catalog"
+            });
+        }
+    }
+);
+
 // ---------- Admin Frame Upload ----------
 app.post(
     "/api/admin/frames/upload",

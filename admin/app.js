@@ -570,7 +570,10 @@ async function loadEconomy() {
 // FRAMES
 // ===========================================================================
 async function loadFrames() {
-  const r = await api("/api/frames/catalog");
+  // Admin Control must use the admin-authenticated catalog endpoint.
+  // The public /api/frames/catalog endpoint is user-authenticated and
+  // returns user inventory, not the full admin frame catalog.
+  const r = await api("/api/admin/frames/catalog");
   const select = $("frame-select");
   select.innerHTML = "";
   const wrap = $("frame-catalog-list");
